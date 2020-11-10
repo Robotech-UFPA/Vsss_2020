@@ -223,9 +223,10 @@ int main(int argc, char *argv[]){
 
     //define your team color here
     std::string input = argv[1];
+    std::string ipVisao = argv[2];
 
     // the ip address need to be in the range 224.0.0.0 through 239.255.255.255
-    RoboCupSSLClient visionClient("224.0.0.0", 10002);
+    RoboCupSSLClient visionClient(ipVisao, 10002);
     visionClient.open(false);
 
     GrSim_Client commandClient("127.0.0.1", 20011);
@@ -264,15 +265,15 @@ int main(int argc, char *argv[]){
         my_robots_are_yellow = true;}
     else if (input == "blue"){
         my_robots_are_yellow = false;}
+    float place_x, place_y, goleiro_x, goleiro_y, atack_x, atack_y;
 
     while(true) {
         float fixo = 13, suave = 11, grave =11;
         float movel;
         VSSRef::ref_to_team::VSSRef_Command command;
-        bool received = false;
         char *buffer = new char[65535];
         long long int packetLength = 0;
-        float place_x, place_y, goleiro_x, goleiro_y;
+
 
         while(refereeClient->hasPendingDatagrams()){
             // Parse message to protobuf
@@ -286,50 +287,64 @@ int main(int argc, char *argv[]){
             apito = getFoulNameById(command.foul()).toStdString();
             quadrante = getQuadrantNameById(command.foulquadrant()).toStdString();
             tempo = getHalfNameById(command.gamehalf()).toStdString();
-            // Showing half
-            VSSRef::team_to_ref::VSSRef_Placement placementCommand;
-            VSSRef::Frame *placementFrame = new VSSRef::Frame();
-            if (my_robots_are_yellow){
-                placementFrame->set_teamcolor(VSSRef::Color::YELLOW);
-                place_x = 0.5;
-                place_y = -0.11;
-                goleiro_x = 0.71;
-                goleiro_y = 0;
-            }
-            else{
-                placementFrame->set_teamcolor(VSSRef::Color::BLUE);
-                place_x = -0.5;
-                place_y = 0.11;
-                goleiro_x = -0.71;
-                goleiro_y = 0;
-            }
-            VSSRef::Robot *robot = placementFrame->add_robots();
-            robot->set_robot_id(static_cast<uint32_t>(2));
-            robot->set_x(place_x);
-            robot->set_y(place_y);
-            robot->set_orientation(0.0);
-            robot->set_robot_id(static_cast<uint32_t>(0));
-            robot->set_x(goleiro_x);
-            robot->set_y(goleiro_y);
-            robot->set_orientation(0.0);
-            placementCommand.set_allocated_world(placementFrame);// Sending blue
-            std::string msgYellow;
-            placementCommand.SerializeToString(&msgYellow);
-            if(replacerSocket->write(msgYellow.c_str(), static_cast<qint64>(msgYellow.length())) == -1){
-                std::cout << "[Example] Failed to write to replacer socket: " << replacerSocket->errorString().toStdString() << std::endl;
-            }
 
-            received = true;
         }
 
         delete [] buffer;
         //if(received) break;
+
         if (apito != "GAME_ON"){
             commandClient.sendCommand(0,0, my_robots_are_yellow, 0);
             commandClient.sendCommand(0,0, my_robots_are_yellow, 1);
             commandClient.sendCommand(0,0, my_robots_are_yellow, 2);
         }
-        else{
+
+        if (apito == "KICKOFF"){
+            // Showing half
+            VSSRef::team_to_ref::VSSRef_Placement placementCommand;
+            VSSRef::Frame *placementFrame = new VSSRef::Frame();
+            if (my_robots_are_yellow){
+                placementFrame->set_teamcolor(VSSRef::Color::YELLOW);
+                place_x = 0.4;
+                place_y = -0.3;
+                goleiro_x = 0.71;
+                goleiro_y = 0;
+                atack_x = 0.20;
+                atack_y= 0;
+            }
+            else{
+                placementFrame->set_teamcolor(VSSRef::Color::BLUE);
+                place_x = -0.4;
+                place_y = 0.3;
+                goleiro_x = -0.71;
+                goleiro_y = 0;
+                atack_x = -0.20;
+                atack_y= 0;
+            }
+            for(int x = 0; x < 3; x++){
+                VSSRef::Robot *robot = placementFrame->add_robots();
+                robot->set_robot_id(static_cast<uint32_t>(x));
+                if (x==0){
+                    robot->set_x(goleiro_x);
+                    robot->set_y(goleiro_y);
+                    robot->set_orientation(0.0);
+                }else if(x==1){
+                    robot->set_x(atack_x);
+                    robot->set_y(atack_y);
+                    robot->set_orientation(0.0);
+                }else{
+                    robot->set_x(place_x);
+                    robot->set_y(place_y);
+                    robot->set_orientation(0.0);
+                }
+            }
+            placementCommand.set_allocated_world(placementFrame);// Sending blue
+            std::string msgTeam;
+            placementCommand.SerializeToString(&msgTeam);
+            if(replacerSocket->write(msgTeam.c_str(), static_cast<qint64>(msgTeam.length())) == -1){
+                std::cout << "[Example] Failed to write to replacer socket: " << replacerSocket->errorString().toStdString() << std::endl;
+            }
+        }
         //commandClient.sendCommand(10,10, false, 1);
         if (visionClient.receive(packet)) {
            //printf("-----Received Wrapper Packet-------------------------\n");
@@ -392,7 +407,7 @@ int main(int argc, char *argv[]){
                         fixo = -fixo;
                         movel = -movel;
                     }
-                    if (yellow_X_Y[1][2] <= 15){
+                    if (yellow_X_Y[1][2] <= 15 || (abs(yellow_X_Y[1][1] - ball.y()*100)) < 10 ){
                         commandClient.sendCommand(fixo,fixo, my_robots_are_yellow, 1);
                     }else if(yellow_X_Y[1][1] < ball.y()*100){
                         commandClient.sendCommand(fixo,fixo, my_robots_are_yellow, 1);
@@ -416,12 +431,12 @@ int main(int argc, char *argv[]){
                     if (yellow_X_Y[2][2] <= 15){
                         commandClient.sendCommand(fixo,fixo, my_robots_are_yellow, 2);
                     }else if(yellow_X_Y[2][1] < ball.y()*100){
-                        commandClient.sendCommand(fixo,fixo, my_robots_are_yellow, 2);
-                        commandClient.sendCommand(movel,fixo, my_robots_are_yellow, 2);
+                        commandClient.sendCommand(fixo-2,fixo-2, my_robots_are_yellow, 2);
+                        commandClient.sendCommand(movel-2,fixo-2, my_robots_are_yellow, 2);
 
                     }else if(yellow_X_Y[2][1] > ball.y()*100){
-                        commandClient.sendCommand(fixo,fixo, my_robots_are_yellow, 2);
-                        commandClient.sendCommand(fixo,movel, my_robots_are_yellow, 2);
+                        commandClient.sendCommand(fixo-2,fixo-2, my_robots_are_yellow, 2);
+                        commandClient.sendCommand(fixo-2,movel-2, my_robots_are_yellow, 2);
 
                     }
                 }
@@ -456,38 +471,19 @@ int main(int argc, char *argv[]){
                         movel = -movel;
                     }
                     if (blue_X_Y[2][2] <= 15){
-                        commandClient.sendCommand(fixo,fixo, my_robots_are_yellow, 1);
+                        commandClient.sendCommand(fixo,fixo, my_robots_are_yellow, 2);
                     }else if(blue_X_Y[2][1] < ball.y()*100){
-                        commandClient.sendCommand(fixo,fixo, my_robots_are_yellow, 1);
-                        commandClient.sendCommand(movel,fixo, my_robots_are_yellow, 1);
+                        commandClient.sendCommand(fixo-2,fixo-2, my_robots_are_yellow, 2);
+                        commandClient.sendCommand(movel-2,fixo-2, my_robots_are_yellow, 2);
 
                     }else if(blue_X_Y[2][1] > ball.y()*100){
-                        commandClient.sendCommand(fixo,fixo, my_robots_are_yellow, 1);
-                        commandClient.sendCommand(fixo,movel, my_robots_are_yellow, 1);
+                        commandClient.sendCommand(fixo-2,fixo-2, my_robots_are_yellow, 2);
+                        commandClient.sendCommand(fixo-2,movel-2, my_robots_are_yellow, 2);
 
                     }
                 }
-                //amarelo -> azul baixo suave
-                //commandClient.sendCommand(-13,-11, true, 1);
-                //commandClient.sendCommand(-13,-13, true, 1);
-                //azul -> amarelo baixo grave
-                //commandClient.sendCommand(13,9, false, 1);
-                //commandClient.sendCommand(13,13, false, 1);
-                //azul -> amarelo baixo suave
-                //commandClient.sendCommand(13,11, false, 1);
-                //commandClient.sendCommand(13,13, false, 1);
-                //azul -> amarelo cima agudo
-                //commandClient.sendCommand(9,13, false, 1);
-                //commandClient.sendCommand(13,13, false, 1);
-                //azul -> amarelo cima suave
-                //commandClient.sendCommand(11,13, false, 1);
-                //commandClient.sendCommand(13,13, false, 1);
-                //if (estrategia_goleiro == "girar")
-                //commandClient.sendCommand(10,10, my_robots_are_yellow, 1);
-
-
         }
     }
-}}
+}
     return 0;
 }
