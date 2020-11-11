@@ -269,7 +269,7 @@ int main(int argc, char *argv[]){
 
     while(true) {
         float fixo = 13, suave = 11, grave =11;
-        float movel;
+        float movel, dball;
         VSSRef::ref_to_team::VSSRef_Command command;
         char *buffer = new char[65535];
         long long int packetLength = 0;
@@ -383,15 +383,13 @@ int main(int argc, char *argv[]){
                 }
                 cout <<(abs(blue_X_Y[1][1] - ball.y()*100))<<endl;
                 if (my_robots_are_yellow){
-                    //estrategia_ataque = behaviour(1,blue_X_Y,yellow_X_Y);
-                    estrategia_goleiro = behaviour(0,blue_X_Y,yellow_X_Y);
+                    dball = yellow_X_Y[0][2];
                 }
                 else{
-                    //estrategia_ataque = behaviour(1,yellow_X_Y,blue_X_Y);
-                    estrategia_goleiro = behaviour(0,yellow_X_Y,blue_X_Y);
+                    dball = blue_X_Y[0][2];
 
                 }
-                if (estrategia_goleiro == "girar"){
+                if (dball <= 35){
                     commandClient.sendCommand(-13,13, my_robots_are_yellow, 0);
                 }
                 else{
@@ -416,7 +414,6 @@ int main(int argc, char *argv[]){
                     }else if(yellow_X_Y[1][1] > ball.y()*100){
                         commandClient.sendCommand(fixo,fixo, my_robots_are_yellow, 1);
                         commandClient.sendCommand(fixo,movel, my_robots_are_yellow, 1);
-
                     }
                     fixo = 13;
                     if ((abs(yellow_X_Y[2][1] - ball.y()*100)) < 25){
@@ -428,7 +425,7 @@ int main(int argc, char *argv[]){
                         fixo = -fixo;
                         movel = -movel;
                     }
-                    if (yellow_X_Y[2][2] <= 15){
+                    if (yellow_X_Y[2][2] <= 20){
                         commandClient.sendCommand(fixo,fixo, my_robots_are_yellow, 2);
                     }else if(yellow_X_Y[2][1] < ball.y()*100){
                         commandClient.sendCommand(fixo-2,fixo-2, my_robots_are_yellow, 2);
@@ -450,7 +447,7 @@ int main(int argc, char *argv[]){
                         fixo = -fixo;
                         movel = -movel;
                     }
-                    if (blue_X_Y[1][2] <= 15){
+                    if (blue_X_Y[1][2] <= 20){
                         commandClient.sendCommand(fixo,fixo, my_robots_are_yellow, 1);
                     }else if(blue_X_Y[1][1] < ball.y()*100){
                         commandClient.sendCommand(fixo,fixo, my_robots_are_yellow, 1);
